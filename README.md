@@ -1,0 +1,3 @@
+Documentation to this project is provided by `technicka_zprava.pdf` - original documentation in Czech language and `technical_report.pdf` - machine-translated (from Czech to English by Google Translator) document of the original. Information provided also contains information about environment settings and program execution options.
+
+The format might be a little off, so for data in tables, please refer to original document.
