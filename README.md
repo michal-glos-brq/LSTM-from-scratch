@@ -1,3 +1,2 @@
-Documentation to this project is provided by `technicka_zprava.pdf` - original documentation in Czech language and `technical_report.pdf` - machine-translated (from Czech to English by Google Translator) document of the original. Information provided also contains information about environment settings and program execution options.
-
-The format might be a little off, so for data in tables, please refer to original document.
+### Project LSTM:
+This is implementation of LSTM neural network from scratch (with numpy only). It's purpose is predicting the Amazon review star rating from the actual text of the review. For further imformation, read the `technicka_zprava.pdf` (which is availible in Czech language only, but Google translater handles that kind of job quite well now)
