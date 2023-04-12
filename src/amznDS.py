@@ -23,11 +23,12 @@ import re
 import pickle
 import requests
 
-# Constatnts - global in order to be easily rewritten by other script
+# Constatnts
 EMBED = 'data/embed.p'
 DATA_PATH = 'data/Video_Games.json'
 DOWNLOAD_PATH = "data/Video_Games.json.gz"
 DATA_URL = 'http://deepyeti.ucsd.edu/jianmo/amazon/categoryFiles/Video_Games.json.gz'
+
 # Regular expression to choose just alphanumerical chars from a word
 regex = re.compile('[\W_]+')
 
