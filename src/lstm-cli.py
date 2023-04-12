@@ -21,6 +21,40 @@ import numpy as np
 # Maximal cardinality of Video Games dataset wuth same amount of data for each class
 TOTAL_REVIEWS = 124393 * 5
 
+
+# Define argument parser
+parser = argparse.ArgumentParser()
+# First decide if the model would train or just evaluate (bool: evaluate)
+parser.add_argument('--naive-evaluate', action='store_true',
+    help="Run naive (no neural network) evaluation only.")
+parser.add_argument('--evaluate', action='store_true',
+    help="Run evaluation only. You probably want to load a model first (--load-model $MODEL_PATH).")
+# Define how much data we want to use for trainig end evaluation
+parser.add_argument('--train-data-entries', action='store', type=int, default=100000,
+    help="How much data entries would be used to train the network? Default: 100000")
+parser.add_argument('--eval-data-entries', action='store', type=int, default=10000,
+    help="How much data entries would be used to evaluate the network? Default: 10000")
+# If defined ratio between training and testing data, load all data
+parser.add_argument('--data-ratio', action='store', type=float, default=None,
+    help="If you want all the data, just enter ration test_data/all_data")
+# Set the learning rate (Best results were reached with value of 0.00005)
+parser.add_argument('--learning-rate', action='store', type=float, default=0.00005,
+    help="Set the learning rate. Recommended values are below 0.01. Default: 0.00005")
+# Set number of LSTM cells
+parser.add_argument('--lstm-cells', action='store', type=int, default=96,
+    help="Set the number of LSTM cells in the neural network. Default: 96")
+# Set number of epochs for training
+parser.add_argument('--epochs', action='store', type=int, default=1,
+    help="Set the number of epochs for training. Default: 1")
+# Load model
+parser.add_argument('--load-model', action='store', type=str, default=None,
+    help="If set, will load model from a file, instead of initializing a new one.")
+# Save model
+parser.add_argument('--save-model', action='store', type=str, default=None,
+    help="Set path to save the model after training. If not set, model will be " + \
+    "stored as data/LSTM_{$LR}_{$LSTM_CELLS}.p, formatted with learning rate and LSTM cells.")
+
+
 class LSTMctl:
     '''Class controlling LSTM actions'''
 
@@ -103,39 +137,7 @@ class LSTMctl:
             print("First, evaluate the network before trainig.")
             lstm.print_success_rate(self.model.evaluate(self.testX, self.testY))
             self.model.train(self.trainX, self.trainY, self.testX, self.testY, self.save_path, epochs=self.epochs)
-        
 
-# Define argument parser
-parser = argparse.ArgumentParser()
-# First decide if the model would train or just evaluate (bool: evaluate)
-parser.add_argument('--naive-evaluate', action='store_true',
-    help="Run naive (no neural network) evaluation only.")
-parser.add_argument('--evaluate', action='store_true',
-    help="Run evaluation only. You probably want to load a model first (--load-model $MODEL_PATH).")
-# Define how much data we want to use for trainig end evaluation
-parser.add_argument('--train-data-entries', action='store', type=int, default=100000,
-    help="How much data entries would be used to train the network? Default: 100000")
-parser.add_argument('--eval-data-entries', action='store', type=int, default=10000,
-    help="How much data entries would be used to evaluate the network? Default: 10000")
-# If defined ratio between training and testing data, load all data
-parser.add_argument('--data-ratio', action='store', type=float, default=None,
-    help="If you want all the data, just enter ration test_data/all_data")
-# Set the learning rate (Best results were reached with value of 0.00005)
-parser.add_argument('--learning-rate', action='store', type=float, default=0.00005,
-    help="Set the learning rate. Recommended values are below 0.01. Default: 0.00005")
-# Set number of LSTM cells
-parser.add_argument('--lstm-cells', action='store', type=int, default=96,
-    help="Set the number of LSTM cells in the neural network. Default: 96")
-# Set number of epochs for training
-parser.add_argument('--epochs', action='store', type=int, default=1,
-    help="Set the number of epochs for training. Default: 1")
-# Load model
-parser.add_argument('--load-model', action='store', type=str, default=None,
-    help="If set, will load model from a file, instead of initializing a new one.")
-# Save model
-parser.add_argument('--save-model', action='store', type=str, default=None,
-    help="Set path to save the model after training. If not set, model will be " + \
-    "stored as data/LSTM_{$LR}_{$LSTM_CELLS}.p, formatted with learning rate and LSTM cells.")
 
 if __name__ == "__main__":
     # Parse arguments, construct the LSTMctl class and execute required action
