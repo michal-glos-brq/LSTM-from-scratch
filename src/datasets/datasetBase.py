@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 import time
 import multiprocessing
+from collections import defaultdict
 
 import numpy as np
 import nltk
@@ -24,7 +25,11 @@ from tqdm import tqdm
 
 
 class EasyDataset(torch.utils.data.Dataset):
-    def __init__(self, x, y, device, torch_type):
+    def __init__(self, x, y, device, torch_type, balance=False):
+        """
+        Args:
+            balance (bool): whether to balance the dataset on y property
+        """
         # Select the correct tensor datatype
         torch_factory = torch.cuda if device == "cuda" else torch
         if torch.float16 == torch_type:
@@ -36,8 +41,41 @@ class EasyDataset(torch.utils.data.Dataset):
         else:
             raise TypeError(f"Unknown type {torch_type}, only torch.float16/32/64 is supported.")
 
-        self._X = x
-        self._y = y
+        if balance:
+            
+            #import pdb; pdb.set_trace()
+            
+            old_len = len(y)
+            data_entries = defaultdict(list)
+            # Now obtain dataset for each rating value
+            for _x, _y in tqdm(list(zip(x, y)), ncols=120, desc='Creating data balancind object ...'):
+                data_entries[_y.item()].append(_x)
+
+            # Now oversample the less prevalent rating values
+            max_len = max([len(sub_ds) for sub_ds in data_entries.values()])
+
+            # Start the oversampling
+            for sub_ds in tqdm(data_entries.values(), desc="Balancing the dataset ...", ncols=120):
+                # To not have random indices, just have an iterator
+                i = 0
+                # Load util the oversampled data exist
+                while len(sub_ds) < max_len:
+                    sub_ds.append(sub_ds[i])
+                    i += 1
+            # Put the new data into the dataset
+            self._X = []
+            self._y = []
+            for rating, data in data_entries.items():
+                self._X += data
+                self._y += [rating] * len(data)
+
+            assert (max_len * len(data_entries)) == len(self._y), "Something went wrong when balancing the dataset!"
+
+            logging.info(f"Balaced dataset with oversampling, from {old_len} entries to {len(self._y)} entries.")
+
+        else:
+            self._X = x
+            self._y = y
 
     def __len__(self):
         return len(self._y)
@@ -81,6 +119,7 @@ class DatasetBase:
         self.torch_type, self.device = torch_type, device
         self.X_train, self.X_test, self.X_eval = None, None, None
         self.y_train, self.y_test, self.y_eval = None, None, None
+        self.balanced = False # By default, we do not care about balancing dummy datasets
 
     def get_tensor_factory(self, torch_type, device):
         self.torch_factory = torch.cuda if device == "cuda" else torch
@@ -107,17 +146,17 @@ class DatasetBase:
     @property
     def train_data(self):
         """Obtain the training data"""
-        return EasyDataset(self.X_train, self.y_train, self.device, self.torch_type)
+        return EasyDataset(self.X_train, self.y_train, self.device, self.torch_type, balance=self.balanced)
 
     @property
     def test_data(self):
         """Obtain the testing data"""
-        return EasyDataset(self.X_test, self.y_test, self.device, self.torch_type)
+        return EasyDataset(self.X_test, self.y_test, self.device, self.torch_type, balance=self.balanced)
 
     @property
     def eval_data(self):
         """Obtain the testing data"""
-        return EasyDataset(self.X_eval, self.y_eval, self.device, self.torch_type)
+        return EasyDataset(self.X_eval, self.y_eval, self.device, self.torch_type, balance=self.balanced)
 
     @staticmethod
     def read_dato(dato, attributes, tokenize):
@@ -266,9 +305,9 @@ class DatasetBase:
          
                 if dato := DatasetBase.read_dato(entry, attributes, tokenize):
                     raw_data.append(dato)
-         
-                # If limit of read entries exceeded, return
-                i += 1
+                    # If limit of read entries exceeded, return
+                    i += 1         
+
 
         return raw_data
 

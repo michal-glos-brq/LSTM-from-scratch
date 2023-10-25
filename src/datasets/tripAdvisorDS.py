@@ -20,7 +20,7 @@ class TripAdvisorDataset(DatasetBase):
     # methods and just filter it later
     ATTRIBUTES_OF_INTEREST = ["text", "rating"]
 
-    def __init__(self, data_folder, device, torch_type, embedding_size=64, data_ratios=(0.8, 0.1, 0.1), entries=10000):
+    def __init__(self, data_folder, device, torch_type, embedding_size=64, data_ratios=(0.8, 0.1, 0.1), entries=10000, balanced=False):
         """
         Initialize, load and download tripadvisor data
 
@@ -32,13 +32,15 @@ class TripAdvisorDataset(DatasetBase):
             specific_ranking (bool or str): If false - overall ranking is used, otherwise specific sub-ranking is chosen
             data_ratios (Tuple(float, float, float)): A tuple of data division (train, test, eval)
             entries (int): How many entries will be loaded
+            balanced (bool): Balance the dataset with oversampling
         """
         assert sum(data_ratios) == 1, "Data ratios should sum to 1!"
         super().__init__(torch_type, device)
         self.rating_entries = entries
         self.data_ratios = data_ratios
         self.data_folder = data_folder
-        
+        self.balanced = balanced
+
         # Obtain torch tensor factory
         self.get_tensor_factory(torch_type, device)
 
@@ -50,7 +52,7 @@ class TripAdvisorDataset(DatasetBase):
         logging.info(f"The dataset will be loaded, tokenized, embedded and converted into tensors. Since the zipped file has more then 50GB, the time counting of the dataset size might take several minutes.")
 
         self.raw_data = self.load_zip(self.abs_filename, self.ATTRIBUTES_OF_INTEREST, "text", "HotelRec.txt", ds_len=entries)
-        print(f"Loaded {len(self.raw_data)} entries of data.")
+        logging.info(f"Loaded {len(self.raw_data)} entries of data.")
         self.embedd_dataset("text", self.raw_data, embedding_size)
         self.finish_dataset()
 
@@ -76,9 +78,9 @@ class TripAdvisorDataset(DatasetBase):
         self.X_eval = self.X[self.test_border_idx : ]
         self.y_eval = self.y[self.test_border_idx : ]
         # Log it to the user (as print to be seen in jupyter also)
-        print(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
-        print(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
-        print(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
+        logging.info(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
+        logging.info(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
+        logging.info(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
 
 
     @property
@@ -120,6 +122,9 @@ class TripAdvisorDataset(DatasetBase):
         )
         group.add_argument(
             "--data-path", type=str, default="./data", help="The path to the folder with data to be downloaded."
+        )
+        group.add_argument(
+            "--balanced", action="store_true", help="Balance the dataset with oversampling."
         )
         group.add_argument("-emb", "--embedding-len", type=int, default=64, help="Size of the embedded word vector.")
         group.add_argument(

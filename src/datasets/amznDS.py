@@ -71,6 +71,7 @@ class AmazonDataset(DatasetBase):
         torch_type,
         fragments=DATASET_OF_INTEREST,
         verified=False,
+        balanced=False,
         embedding_size=64,
         data_ratios=(0.8, 0.1, 0.1),
         entries=10000,
@@ -87,11 +88,13 @@ class AmazonDataset(DatasetBase):
             embedding_size (int): Length of embed vector (token)
             fragments  (List[str]): List of fragments of interest (Keys from DATASETS list)
             verified (bool): Keep verified attribute of data
+            balanced (bool): Balance the dataset with oversampling
         """
         super().__init__(torch_type, device)
         assert sum(data_ratios) == 1, "Data ratios should sum to 1!"
         self.data_ratios = data_ratios
         self.rating_entries = entries
+        self.balanced = balanced
 
         # Just obtain neccessary classes
         self.get_tensor_factory(torch_type, device)
@@ -168,9 +171,9 @@ class AmazonDataset(DatasetBase):
         self.X_eval = self.X[self.test_border_idx : ]
         self.y_eval = self.y[self.test_border_idx : ]
         # Log it to the user (as print to be seen in jupyter also)
-        print(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
-        print(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
-        print(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
+        logging.info(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
+        logging.info(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
+        logging.info(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
         
 
     @classmethod
@@ -205,6 +208,9 @@ class AmazonDataset(DatasetBase):
         group.add_argument("-emb", "--embedding-len", type=int, default=64, help="Size of the embedded word vector.")
         group.add_argument(
             "--verified", action="store_true", help="Use verified bool value as part of embedding vectors."
+        )
+        group.add_argument(
+            "--balanced", action="store_true", help="Balance the dataset with oversampling."
         )
         group.add_argument(
             "-div",
