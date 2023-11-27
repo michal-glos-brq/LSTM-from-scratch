@@ -1,5 +1,6 @@
 import os
 import logging
+import random
 
 from tqdm import tqdm
 
@@ -43,7 +44,7 @@ DATASETS = {
 }
 
 
-DATASET_OF_INTEREST = ["Magazines", "GiftCards"]
+DATASET_OF_INTEREST = ["Magazines", "GiftCards", "MusicalInstruments", "Software", "Groceries"]
 
 
 class AmazonDataset(DatasetBase):
@@ -75,6 +76,7 @@ class AmazonDataset(DatasetBase):
         embedding_size=64,
         data_ratios=(0.8, 0.1, 0.1),
         entries=10000,
+        max_seq_len=176,
     ):
         """
         Instantiate self, include dataset fragments included in the global var DATASET_OF_INTEREST
@@ -84,23 +86,22 @@ class AmazonDataset(DatasetBase):
             device (str): Specify torch device
             torch_type (torch.dtype): Specify the dtype of data (float16, float32, float64)
             data_ratios (Tuple(float, float, float)): A tuple of data division (train, test, eval)
-            entries (int): How many entries will be loaded
+            entries (int): How many entries will be loaded  per rating value
             embedding_size (int): Length of embed vector (token)
             fragments  (List[str]): List of fragments of interest (Keys from DATASETS list)
             verified (bool): Keep verified attribute of data
             balanced (bool): Balance the dataset with oversampling
+            max_seq_len (int): Maximal length of sequence until it is cut off
         """
         super().__init__(torch_type, device)
         assert sum(data_ratios) == 1, "Data ratios should sum to 1!"
+        self.max_seq_len = max_seq_len
         self.data_ratios = data_ratios
         self.rating_entries = entries
         self.balanced = balanced
 
-        # Just obtain neccessary classes
-        self.get_tensor_factory(torch_type, device)
-
         self.embedding_size = embedding_size
-        self.raw_data, self.formatted_data = [], []
+        self.raw_data, self._raw_data, self.formatted_data = [], [], []
         self.fragments = fragments
         self.data_folder = data_folder
 
@@ -128,10 +129,26 @@ class AmazonDataset(DatasetBase):
         )
 
         for fragment in DATASET_OF_INTEREST:
-            line_limit = entries - len(self.raw_data)
-            self.raw_data.extend(
-                self.load_gzip_json(self._get_fragment_path(fragment), self.attributes_of_interest, "reviewText", line_limit)
+            self._raw_data.extend(
+                self.load_gzip_json(self._get_fragment_path(fragment), self.attributes_of_interest, "reviewText")
             )
+
+        # Count entries per rating class
+        entries_limit = int(entries / 5)
+        counter = [0] * 5        
+
+        random.shuffle(self._raw_data)
+
+        dato_to_del = []
+        for dato in self._raw_data:
+            idx = int(dato['overall']) - 1
+            if not counter[idx] >= entries_limit:
+                counter[idx] += 1
+                self.raw_data.append(dato)
+            else:
+                dato_to_del.append(dato)
+        
+        del dato_to_del
 
         self.embedd_dataset("reviewText", self.raw_data, embedding_size)
         self.finish_dataset()
@@ -158,6 +175,12 @@ class AmazonDataset(DatasetBase):
         # Load the data into X and y components
         self.X = [dato["X"] for dato in self.raw_data]
         self.y = [dato["y"] for dato in self.raw_data]
+
+        # Shuffle those
+        data = list(zip(self.X, self.y))
+        random.shuffle(data)
+        self.X, self.y = zip(*data)
+        self.X, self.y = list(self.X), list(self.y)
 
         # Obtain the border indices
         self.train_border_idx = int(self.data_ratios[0] * len(self.y))

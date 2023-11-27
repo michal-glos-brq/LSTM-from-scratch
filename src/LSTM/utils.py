@@ -36,12 +36,14 @@ def mse_loss_d(y_gt, y_pred):
         y_gt (torch.Tensor) : ground truth tensor, (batch_size, 1)
         y_pred (torch.Tensor) : tensor predicted by the model, (batch_size, 1)
     """
-    return y_gt.sub(y_pred)
+    return y_pred.sub(y_gt)
 
 
 def num_correct(y_gt, y_pred):
     """Obtain the ration of cerrect predicitons"""
-    return ((torch.round(y_pred) == y_gt).sum().div(y_pred.shape[0]))
+    # Rounding the GTs so our regression model with floats could learn from floats with enough gradient
+    # while the class is it's rounded value - it has to learn how to count properly
+    return ((torch.round(y_pred) == torch.round(y_gt)).sum().div(y_pred.shape[0]))
 
 
 @dataclass

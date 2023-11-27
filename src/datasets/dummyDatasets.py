@@ -141,9 +141,9 @@ class SummingFloatDataset(DatasetBase):
             requires_grad=False,
         )
         # Compute adequate ground truths
-        y_train = X_train.sum(dim=(1, 2))
-        y_test = X_test.sum(dim=(1, 2))
-        y_eval = X_eval.sum(dim=(1, 2))
+        y_train = torch.round(X_train.sum(dim=(1, 2)))
+        y_test = torch.round(X_test.sum(dim=(1, 2)))
+        y_eval = torch.round(X_eval.sum(dim=(1, 2)))
         # Save the values
         self.X_train, self.X_test, self.X_eval = X_train, X_test, X_eval
         self.y_train, self.y_test, self.y_eval = y_train, y_test, y_eval

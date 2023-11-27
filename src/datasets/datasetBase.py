@@ -42,9 +42,7 @@ class EasyDataset(torch.utils.data.Dataset):
             raise TypeError(f"Unknown type {torch_type}, only torch.float16/32/64 is supported.")
 
         if balance:
-            
-            #import pdb; pdb.set_trace()
-            
+                        
             old_len = len(y)
             data_entries = defaultdict(list)
             # Now obtain dataset for each rating value
@@ -121,22 +119,34 @@ class DatasetBase:
         self.y_train, self.y_test, self.y_eval = None, None, None
         self.balanced = False # By default, we do not care about balancing dummy datasets
 
-    def get_tensor_factory(self, torch_type, device):
-        self.torch_factory = torch.cuda if device == "cuda" else torch
-        if torch_type == torch.float16:
-            self.tensor_factory = self.torch_factory.HalfTensor
-        elif torch_type == torch.float32:
-            self.tensor_factory = self.torch_factory.FloatTensor
-        if torch_type == torch.float64:
-            self.tensor_factory = self.torch_factory.DoubleTensor
+    @property
+    def tensor_factory(self):
+        if self.torch_type == torch.float16:
+            return self.torch_factory.HalfTensor
+        elif self.torch_type == torch.float32:
+            return self.torch_factory.FloatTensor
+        if self.torch_type == torch.float64:
+            return self.torch_factory.DoubleTensor
+
+    @property
+    def torch_factory(self):
+        return torch.cuda if self.device == "cuda" else torch
+
 
     def embedd_dataset(self, attr_to_embedd, raw_data, embedding_size):
         """Embedd the attribute attr_to_embed"""
+        corpus = []
+        for entry in tqdm(raw_data, desc="Creating vocabulary ...", ncols=112):
+            corpus.append(entry[attr_to_embedd])
+        
         pbar = tqdm(raw_data, desc=f"Embedding dataset ...", ncols=120)
-        corpus = [entry[attr_to_embedd] for entry in raw_data]
         model = Word2Vec(sentences=corpus, min_count=1, vector_size=embedding_size, window=5)
+
+        del corpus
+
         for dato in pbar:
-            dato["X"] = self.tensor_factory(np.array([model.wv[token] for token in dato[attr_to_embedd]]))
+            dato["X"] = self.tensor_factory(np.array([model.wv[token] for token in dato[attr_to_embedd][:self.max_seq_len]]))
+            del dato[attr_to_embedd]
 
     @property
     def entry_size(self):
@@ -168,22 +178,22 @@ class DatasetBase:
             return new_entry
 
     @staticmethod
-    def _init_reader(file_d, read_queue, num_lines: int, queue_max_len=128):
+    def _init_reader(file_d, read_queue, counters, per_rating_entries, queue_max_len=128):
         """
         Read a file in the read_queue, do not exceed the given limit on Queue size
 
         Args:
             file_d (file descriptor): File to be read - already opened
             read_queue (multiprocessing.Queue): Queue to load the file into
-            num_lines (int): Number of lines to be loaded
+            counters (multiprocessing.Array): Counter of reviews per rating
+            per_rating_entries (int): How many reviews to load for each rating value
             queue_max_len (int): Max len of Queue until reading is suspemded for a while
         """
-        pbar = tqdm([None], total=num_lines, desc="Reading ...", ncols=120)
-        i = 0
+        pbar = tqdm([None], total=per_rating_entries*5, desc='Loading data', ncols=112)
+        total = 0
         # Read line-by-line
         while line := file_d.readline():
-            # If max lines exceeded, finish
-            if i >= num_lines:
+            if all([counter >= per_rating_entries for counter in counters]):
                 break
             
             # Wait if Queue is full
@@ -194,12 +204,14 @@ class DatasetBase:
                     break
 
             # If there is a free space, let's push it in
+            _total = sum(counters)
+            pbar.update(_total - total)
+            total = _total
+
             read_queue.put(line)
-            pbar.update(1)
-            i += 1
 
     @staticmethod
-    def _init_parser(read_queue, write_queue, attributes, tokenize):
+    def _init_parser(read_queue, write_queue, attributes, tokenize, counters, per_rating_entries):
         """
         Init parser subprocess which takes entries from read_queue and parses it into the write_queue
 
@@ -209,6 +221,8 @@ class DatasetBase:
             attributes (List[str]): A list of attributes a dato must have to be loaded, to be loaded
                         means only attributes from the list will be loaded into a dict
             tokenize (str): the attribute of loaded dict to be tokenized (required)
+            counters (multiprocessing.Array): Counter of reviews per rating
+            per_rating_entries (int): How many reviews to load for each rating value
         """
         while True:
             # Try to fetch a line, exit if queue empty
@@ -219,6 +233,11 @@ class DatasetBase:
 
             # Load the data entry onto the write queue
             if dato := DatasetBase.read_dato(line, attributes, tokenize):
+                idx = int(dato['rating']) - 1
+                if counters[idx] >= per_rating_entries:
+                    del dato
+                    continue                
+                counters[idx] += 1
                 write_queue.put(dato)
 
     @staticmethod
@@ -243,22 +262,24 @@ class DatasetBase:
         nltk.download("punkt")
 
         read_queue, write_queue = multiprocessing.Queue(), multiprocessing.Queue()
+        counters = multiprocessing.Array('i', 5)
 
         with ZipFile(file_dst, "r") as zipfile:
             with zipfile.open(zipfile_src) as extracted_file:
                 # If we want to compute the number of lines ...
                 if ds_len is None:
-                    ds_len = sum((1 for _ in extracted_file))
-                
+                    ds_len = 100000
+                ds_len = int(ds_len / 5)
+
                 # The main read process
-                reader = multiprocessing.Process(target=DatasetBase._init_reader, args=(extracted_file, read_queue, ds_len))
+                reader = multiprocessing.Process(target=DatasetBase._init_reader, args=(extracted_file, read_queue, counters, ds_len))
                 reader.start()
 
                 # Initialize the workers
                 workers = []
                 for _ in range(num_workers):
                     p = multiprocessing.Process(
-                        target=DatasetBase._init_parser, args=(read_queue, write_queue, attributes, tokenize)
+                        target=DatasetBase._init_parser, args=(read_queue, write_queue, attributes, tokenize, counters, ds_len)
                     )
                     p.start()
                     workers.append(p)
@@ -283,7 +304,7 @@ class DatasetBase:
         return raw_data
 
     @staticmethod
-    def load_gzip_json(file_dst, attributes: List[str], tokenize: str, num_lines: int):
+    def load_gzip_json(file_dst, attributes: List[str], tokenize: str):
         """
         Load an array of JSON objects compressed into gzip format into a array of dicts
 
@@ -296,18 +317,11 @@ class DatasetBase:
         nltk.download("punkt")
 
         raw_data = []
-        i = 0
         with gzip.open(file_dst, "r") as file:
             all_lines = file.readlines()
-            for entry in tqdm(all_lines, total=min(len(all_lines), num_lines) ,desc=f"Reading {file_dst} ...", ncols=120):
-                if i >= num_lines:
-                    break
-         
+            for entry in tqdm(all_lines, total=len(all_lines) ,desc=f"Reading {file_dst} ...", ncols=120):
                 if dato := DatasetBase.read_dato(entry, attributes, tokenize):
-                    raw_data.append(dato)
-                    # If limit of read entries exceeded, return
-                    i += 1         
-
+                    raw_data.append(dato)     
 
         return raw_data
 

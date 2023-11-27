@@ -2,7 +2,7 @@
 This file implements simple LSTM cell implementation with BTT and also Bidirectional LSTM cell.
 The cell is capable of processing a batch of heterogenous input vectors, one at a time.
 
-This file also implements a neural network model with 2 linear layers - first with activation ReLU,
+This file also implements a neural network model with 2 linear layers - first with activation sigmoid,
 the second is None. This model works like rough regressor/estimator, final values have to be rounded
 for integer ranking eventually when evaluating (decimals provide good gradients when learning)
 """
@@ -29,29 +29,29 @@ class LSTMCell:
         self.hidden_size, self.input_size = hidden_size, input_size
         self.device, self.torch_type = device, torch_type
         # Initialize zero with zeros of shape (batch_size, hidden_size) as initial states
-        self.init_cell_state = torch.zeros((1, hidden_size), requires_grad=False, device=device)
-        self.init_hidden_state = torch.zeros((1, hidden_size), requires_grad=False, device=device)
+        self.init_cell_state = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
+        self.init_hidden_state = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
 
         # Init forget gate
         self.Wf = torch.nn.init.xavier_uniform_(
-            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device)
+            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device, dtype=torch_type)
         )
-        self.bf = torch.zeros((1, hidden_size), requires_grad=False, device=device)
+        self.bf = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
         # Init input gate
         self.Wi = torch.nn.init.xavier_uniform_(
-            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device)
+            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device, dtype=torch_type)
         )
-        self.bi = torch.zeros((1, hidden_size), requires_grad=False, device=device)
+        self.bi = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
         # Init output gate
         self.Wo = torch.nn.init.xavier_uniform_(
-            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device)
+            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device, dtype=torch_type)
         )
-        self.bo = torch.zeros((1, hidden_size), requires_grad=False, device=device)
+        self.bo = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
         # Init candidate state gate
         self.Wc = torch.nn.init.xavier_uniform_(
-            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device)
+            torch.empty(input_size + hidden_size, hidden_size, requires_grad=False, device=device, dtype=torch_type)
         )
-        self.bc = torch.zeros((1, hidden_size), requires_grad=False, device=device)
+        self.bc = torch.zeros((1, hidden_size), requires_grad=False, device=device, dtype=torch_type)
 
         # Initialize memory stack for gradient computation (BPTT) and gradient cumulation object
         self.memory = LSTMGradParams()
@@ -140,10 +140,9 @@ class LSTMCell:
         # Transpose tensor so we iterate over sequences, not the batch
         for x in range(X.shape[1]):
             hidden_state, cell_state = self.forward_step(
-                X[:, x, :], cell_state, hidden_state, requires_grad=requires_grad
+                X[:, x, :].type(self.tensor_factory), cell_state, hidden_state, requires_grad=requires_grad
             )
             hidden_states.append(hidden_state)
-
         # Let's transpose it back to the original shape
         return torch.stack(hidden_states).transpose(1, 0)
 
@@ -180,14 +179,14 @@ class LSTMCell:
         input_gate_d = cell_state_d.mul(candidate_gate.mul(sigmoid_d(input_gate)))
 
         # Cumulate gradients (scaled by learning rate when applying gradients)
-        self.grads.dWf.sub(torch.matmul(cat_input.T, forget_gate_d))
-        self.grads.dbf.sub(torch.sum(forget_gate_d, dim=0))
-        self.grads.dWi.sub(torch.matmul(cat_input.T, input_gate_d))
-        self.grads.dbi.sub(torch.sum(input_gate_d, dim=0))
-        self.grads.dWo.sub(torch.matmul(cat_input.T, output_gate_d))
-        self.grads.dbo.sub(torch.sum(output_gate_d, dim=0))
-        self.grads.dWc.sub(torch.matmul(cat_input.T, candidate_gate_d))
-        self.grads.dbc.sub(torch.sum(candidate_gate_d, dim=0))
+        self.grads.dWf.add(torch.matmul(cat_input.T, forget_gate_d))
+        self.grads.dbf.add(torch.sum(forget_gate_d, dim=0))
+        self.grads.dWi.add(torch.matmul(cat_input.T, input_gate_d))
+        self.grads.dbi.add(torch.sum(input_gate_d, dim=0))
+        self.grads.dWo.add(torch.matmul(cat_input.T, output_gate_d))
+        self.grads.dbo.add(torch.sum(output_gate_d, dim=0))
+        self.grads.dWc.add(torch.matmul(cat_input.T, candidate_gate_d))
+        self.grads.dbc.add(torch.sum(candidate_gate_d, dim=0))
 
         # Derivative of concatenated vectors of LSTM input and hidden_state_in (will be split further)
         combined_gate_gradients = (
@@ -253,6 +252,19 @@ class LSTMCell:
         )
 
     @property
+    def torch_factory(self):
+        return torch.cuda if self.device == "cuda" else torch
+
+    @property
+    def tensor_factory(self):
+        if self.torch_type == torch.float16:
+            return self.torch_factory.HalfTensor
+        elif self.torch_type == torch.float32:
+            return self.torch_factory.FloatTensor
+        if self.torch_type == torch.float64:
+            return self.torch_factory.DoubleTensor
+
+    @property
     def stack_size(self):
         """Access stack size (of inference history) from LSTM cell class"""
         return self.memory.stack_size
@@ -306,6 +318,7 @@ class Regressor:
         """Initialize the regression model"""
         self.hidden_size = hidden_size
         self.torch_type = torch_type
+        self.device = device
         self.W1 = torch.nn.init.xavier_uniform_(
             torch.empty((input_size, hidden_size), requires_grad=False, device=device, dtype=self.torch_type)
         )
@@ -315,46 +328,62 @@ class Regressor:
         self.b1 = torch.zeros((hidden_size,), requires_grad=False, device=device, dtype=self.torch_type)
         self.b2 = torch.zeros((1,), requires_grad=False, device=device, dtype=self.torch_type)
 
+    @property
+    def torch_factory(self):
+        return torch.cuda if self.device == "cuda" else torch
+
+    @property
+    def tensor_factory(self):
+        if self.torch_type == torch.float16:
+            return self.torch_factory.HalfTensor
+        elif self.torch_type == torch.float32:
+            return self.torch_factory.FloatTensor
+        if self.torch_type == torch.float64:
+            return self.torch_factory.DoubleTensor
+
     def forward(self, X, requires_grad=True):
         """
         Forward pass with 2 layered regressor
 
         X (torch.Tensor) : Input tensor of shape (batch_size, input_size)
         """
-        hidden_output = torch.sigmoid(torch.matmul(X, self.W1).add(self.b1))
+        hidden_preactiv_output = torch.matmul(X, self.W1).add(self.b1)
+        hidden_output = torch.sigmoid(hidden_preactiv_output)
         output = torch.matmul(hidden_output, self.W2).add(self.b2)
 
         # Keep data for gradient computation
         if requires_grad:
             self.X = X
+            self.hidden_preactiv_output = hidden_preactiv_output
             self.hidden_output = hidden_output
 
         return output
 
-    def backward(self, loss_d, lr):
+    def backward(self, loss_grad, lr):
         """
         Perform backward pass and apply gradients
 
         Args:
-            loss_d (torch.Tensor): Chained derivative of objective function of shape (batch_size, 1)
+            loss_grad (torch.Tensor): Chained derivative of objective function of shape (batch_size, 1)
             lr (float): Learning rate
         """
-        # loss_d is actually chained gradient, derivative of MSE and activation function, which is None
-        hidden_layer_loss = torch.matmul(loss_d, self.W2.T)
-        hidden_layer_chain_d = hidden_layer_loss.mul(sigmoid_d(self.hidden_output))
+        # loss_grad is actually chained gradient, derivative of MSE and activation function, which is None
+        loss_grad = loss_grad.type(self.tensor_factory)
+        hidden_layer_loss = torch.matmul(loss_grad, self.W2.T)
+        hidden_layer_chain_d = hidden_layer_loss.mul(sigmoid_d(self.hidden_preactiv_output))
 
         # Update weights and biases
-        dW2 = torch.matmul(self.hidden_output.T, loss_d).mul(lr)
-        db2 = torch.sum(loss_d, dim=0).mul(lr)  # Sum over batches
+        dW2 = torch.matmul(self.hidden_output.T, loss_grad)
+        db2 = torch.sum(loss_grad, dim=0)  # Sum over batches
 
         # We use lr as limits because it's a faster way on how to apply the clamping after multiplying with learning rate
-        self.W2 += torch.clip(dW2, min=-lr, max=lr)
-        self.b2 += torch.clip(db2, min=-lr, max=lr)
+        self.W2 -= torch.clip(dW2, min=-1, max=1).mul(lr)
+        self.b2 -= torch.clip(db2, min=-1, max=1).mul(lr)
 
-        dW1 = torch.matmul(self.X.T, hidden_layer_chain_d).mul(lr)
-        db1 = torch.sum(hidden_layer_chain_d, dim=0).mul(lr)  # Sum over batches
-        self.W1 += torch.clip(dW1, min=-lr, max=lr)
-        self.b1 += torch.clip(db1, min=-lr, max=lr)
+        dW1 = torch.matmul(self.X.T, hidden_layer_chain_d)
+        db1 = torch.sum(hidden_layer_chain_d, dim=0)  # Sum over batches
+        self.W1 -= torch.clip(dW1, min=-1, max=1).mul(lr)
+        self.b1 -= torch.clip(db1, min=-1, max=1).mul(lr)
 
         # Return chained derivatives for layers before the classifier
         out_chain_d = torch.matmul(hidden_layer_chain_d, self.W1.T)
