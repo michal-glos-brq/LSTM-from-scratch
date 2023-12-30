@@ -12,6 +12,7 @@ import torch
 from LSTM.model_parts import LSTMCell, BiLSTMCell, Regressor
 from LSTM.utils import mse_loss, mse_loss_d, num_correct
 
+PLOT_DATA_CACHE = None
 
 class ChartData:
     """This class stores, aggregates and annotates training data"""
@@ -29,9 +30,9 @@ class ChartData:
             self.steps_per_entry = steps_per_entry
 
         def add_entry(self, correct, loss):
-            self.loss.append(loss)
+            self.loss.append(loss.cpu().item())
             self.loss_steps.append(self.step)
-            self.correct.append(correct)
+            self.correct.append(correct.cpu().item())
             self.correct_steps.append(self.step)
             self.step += self.steps_per_entry
 
@@ -143,7 +144,7 @@ class LSTM:
         chained_divided_d = self.divide_grads(chained_d, last_sequence_len)
         self.lstm.backward(chained_divided_d, lr)
 
-    def train(self, train_dataset, test_dataset, lr, batch_size, steps, steps_per_eval, lr_decay_coeff=-5):
+    def train(self, train_dataset, test_dataset, lr, batch_size, steps, steps_per_eval, lr_decay_coeff=-3):
         """
         Train the model on given dataset
 
@@ -158,7 +159,8 @@ class LSTM:
             lr_decay_coeff (float, negative): at final step, lr wil be multiplied by e ** lr_decay_coeff
         """
         # Here we keep data of traninig progress for plotting
-        self.plot_data = ChartData(steps_per_eval)
+        global PLOT_DATA_CACHE
+        PLOT_DATA_CACHE = ChartData(steps_per_eval)
 
         # Counting training steps to perform test eval in every steps_per_eval steps
         steps_to_eval = steps_per_eval - 1
@@ -168,17 +170,17 @@ class LSTM:
             train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset._padded_batch_loader
         )
 
-        steps_taken = 0
+        current_step = 1
         pbar = tqdm(range(steps), desc="Training ...", ncols=118)
         best_mse = float("inf")
 
-        while steps_taken < steps:
+        while current_step <= steps:
             for X, y in train_dataloader:
                 # If on different devices, let's not fail
                 X = X.to(self.device)
                 y = y.to(self.device)
                 # If the step limit achieved, finish the training
-                if steps_taken >= steps:
+                if current_step > steps:
                     break
                 y_gt = y.unsqueeze(1)
                 # Infere!
@@ -187,12 +189,12 @@ class LSTM:
                 # Make the GT a batch of one-element vectors and calculate the losses and gradients
                 loss = mse_loss(y_gt, y_pred)
                 correct = num_correct(y_gt, y_pred)
-                self.plot_data.training_data.add_entry(correct, loss)
+                PLOT_DATA_CACHE.training_data.add_entry(correct, loss)
 
                 loss_d = mse_loss_d(y_gt, y_pred)
 
                 # Do the backward step with LR with linear decay
-                coeff = ((steps_taken / steps) * -5)
+                coeff = ((current_step / steps) * lr_decay_coeff)
                 _lr = np.e ** coeff * lr
                 self.backward(loss_d, lr=_lr)
 
@@ -204,28 +206,30 @@ class LSTM:
                     # Look for best ratio of mse_error and correct rate (lower the better)
                     if mse_error < best_mse:
                         best_mse = mse_error
-                        self.checkpoint(steps_taken, mse_error, correct_rate)
+                        self.checkpoint(current_step, mse_error, correct_rate)
                     
-                    self.plot_data.testing_data.add_entry(correct=correct_rate, loss=mse_error)
+                    PLOT_DATA_CACHE.testing_data.add_entry(correct=correct_rate, loss=mse_error)
                     
                     # Calculate and display the losses
-                    loss_avg = sum(self.plot_data.training_data.loss[-8:]) / len(self.plot_data.training_data.loss[-8:])
-                    last_eval_correct_rate = self.plot_data.testing_data.correct[-1]
+                    loss_avg = sum(PLOT_DATA_CACHE.training_data.loss[-8:]) / len(PLOT_DATA_CACHE.training_data.loss[-8:])
+                    last_eval_correct_rate = PLOT_DATA_CACHE.testing_data.correct[-1]
                     pbar.set_description(
                         (
                             f"(train l: {loss_avg:.4f}; test correct: {(last_eval_correct_rate) * 100:.0f} % "
-                            f"test l:{self.plot_data.testing_data.loss[-1]:.4f}, lr: {_lr:.6f})"
+                            f"test l:{PLOT_DATA_CACHE.testing_data.loss[-1]:.4f}, lr: {_lr:.6f})"
                         )
                     )
                 else:
                     steps_to_eval -= 1
 
-                steps_taken += 1
+                current_step += 1
                 pbar.update(1)
                 
         # Pickle the training data for potential further use
-        with open(os.path.join(self.run_folder, "training_data.p"), "wb") as data_file:
-            pickle.dump(self.plot_data, data_file)
+        filename = os.path.join(self.run_folder, "training_data.p")
+        with open(filename, "wb") as data_file:
+            print(f"Saving plot data into {filename}")
+            pickle.dump(PLOT_DATA_CACHE, data_file)
                 
 
     def create_run_folder(self, runs_dir, run_dict):

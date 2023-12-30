@@ -44,7 +44,7 @@ DATASETS = {
 }
 
 
-DATASET_OF_INTEREST = ["Magazines", "GiftCards", "MusicalInstruments", "Software", "Groceries"]
+DATASET_OF_INTEREST = ["Magazines", "GiftCards", "Software", "VideoGames"]
 
 
 class AmazonDataset(DatasetBase):
@@ -148,6 +148,7 @@ class AmazonDataset(DatasetBase):
             else:
                 dato_to_del.append(dato)
         
+        del self._raw_data
         del dato_to_del
 
         self.embedd_dataset("reviewText", self.raw_data, embedding_size)
@@ -197,6 +198,8 @@ class AmazonDataset(DatasetBase):
         logging.info(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
         logging.info(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
         logging.info(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
+        
+        del self.raw_data
         
 
     @classmethod

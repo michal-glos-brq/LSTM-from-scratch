@@ -6,6 +6,7 @@ import os
 import sys
 import gzip
 import json
+import random
 import logging
 import requests
 from typing import List
@@ -79,7 +80,16 @@ class EasyDataset(torch.utils.data.Dataset):
         return len(self._y)
 
     def __getitem__(self, idx):
-        return (self._X[idx], self._y[idx])
+        # It turned out there is a bug in Amazon dataset implementation and it allows for luckily very small amount (~ one per million)
+        # so in order not to return an empty tensors, check if tensor is not empty. Is it is, return some random entry, which would not be empty
+        x, y = (self._X[idx], self._y[idx])
+        if x.shape[0] > 0:
+            return (x, y)
+        else:
+            while x.shape[0] == 0:
+                random_idx = random.randint(0, len(self._X) - 1)
+                x, y = (self._X[random_idx], self._y[random_idx])
+            return (x, y)
 
     @property
     def X(self):

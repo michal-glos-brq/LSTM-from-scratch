@@ -70,6 +70,7 @@ class TripAdvisorDataset(DatasetBase):
         logging.info(f"Loaded {len(self.raw_data)} entries of data.")
         self.embedd_dataset("text", self.raw_data, embedding_size)
         self.finish_dataset()
+        del self.raw_data
 
     def finish_dataset(self):
         """Train Word2Vec model and encode each token from data into a torch tensor"""
