@@ -1,6 +1,8 @@
 """
-This file implements base class for other datasets and  also a dummy datasets,
-artificially generated for model behaviour verification.
+This file implements base class for other datasets and custom pytorch dataset class compatibile with torch standards
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
 """
 import os
 import sys
@@ -43,11 +45,10 @@ class EasyDataset(torch.utils.data.Dataset):
             raise TypeError(f"Unknown type {torch_type}, only torch.float16/32/64 is supported.")
 
         if balance:
-                        
             old_len = len(y)
             data_entries = defaultdict(list)
             # Now obtain dataset for each rating value
-            for _x, _y in tqdm(list(zip(x, y)), ncols=120, desc='Creating data balancind object ...'):
+            for _x, _y in tqdm(list(zip(x, y)), ncols=120, desc="Creating data balancind object ..."):
                 data_entries[_y.item()].append(_x)
 
             # Now oversample the less prevalent rating values
@@ -80,8 +81,8 @@ class EasyDataset(torch.utils.data.Dataset):
         return len(self._y)
 
     def __getitem__(self, idx):
-        # It turned out there is a bug in Amazon dataset implementation and it allows for luckily very small amount (~ one per million)
-        # so in order not to return an empty tensors, check if tensor is not empty. Is it is, return some random entry, which would not be empty
+        # It turned out there is a bug in Amazon dataset implementation and it allows for luckily very small chance (~ one per million)
+        # so in order not to return an empty tensors, check if tensor is not empty. If is, return some random non-empty review rating pair
         x, y = (self._X[idx], self._y[idx])
         if x.shape[0] > 0:
             return (x, y)
@@ -127,7 +128,7 @@ class DatasetBase:
         self.torch_type, self.device = torch_type, device
         self.X_train, self.X_test, self.X_eval = None, None, None
         self.y_train, self.y_test, self.y_eval = None, None, None
-        self.balanced = False # By default, we do not care about balancing dummy datasets
+        self.balanced = False  # By default, we do not care about balancing dummy datasets
 
     @property
     def tensor_factory(self):
@@ -142,20 +143,21 @@ class DatasetBase:
     def torch_factory(self):
         return torch.cuda if self.device == "cuda" else torch
 
-
     def embedd_dataset(self, attr_to_embedd, raw_data, embedding_size):
         """Embedd the attribute attr_to_embed"""
         corpus = []
         for entry in tqdm(raw_data, desc="Creating vocabulary ...", ncols=112):
             corpus.append(entry[attr_to_embedd])
-        
+
         pbar = tqdm(raw_data, desc=f"Embedding dataset ...", ncols=120)
         model = Word2Vec(sentences=corpus, min_count=1, vector_size=embedding_size, window=5)
 
         del corpus
 
         for dato in pbar:
-            dato["X"] = self.tensor_factory(np.array([model.wv[token] for token in dato[attr_to_embedd][:self.max_seq_len]]))
+            dato["X"] = self.tensor_factory(
+                np.array([model.wv[token] for token in dato[attr_to_embedd][: self.max_seq_len]])
+            )
             del dato[attr_to_embedd]
 
     @property
@@ -199,13 +201,13 @@ class DatasetBase:
             per_rating_entries (int): How many reviews to load for each rating value
             queue_max_len (int): Max len of Queue until reading is suspemded for a while
         """
-        pbar = tqdm([None], total=per_rating_entries*5, desc='Loading data', ncols=112)
+        pbar = tqdm([None], total=per_rating_entries * 5, desc="Loading data", ncols=112)
         total = 0
         # Read line-by-line
         while line := file_d.readline():
             if all([counter >= per_rating_entries for counter in counters]):
                 break
-            
+
             # Wait if Queue is full
             while True:
                 if read_queue.qsize() >= queue_max_len:
@@ -237,16 +239,16 @@ class DatasetBase:
         while True:
             # Try to fetch a line, exit if queue empty
             try:
-                line = read_queue.get(timeout=1) # A second for parsers to know it's done
+                line = read_queue.get(timeout=1)  # A second for parsers to know it's done
             except multiprocessing.queues.Empty:
                 break
 
             # Load the data entry onto the write queue
             if dato := DatasetBase.read_dato(line, attributes, tokenize):
-                idx = int(dato['rating']) - 1
+                idx = int(dato["rating"]) - 1
                 if counters[idx] >= per_rating_entries:
                     del dato
-                    continue                
+                    continue
                 counters[idx] += 1
                 write_queue.put(dato)
 
@@ -272,7 +274,7 @@ class DatasetBase:
         nltk.download("punkt")
 
         read_queue, write_queue = multiprocessing.Queue(), multiprocessing.Queue()
-        counters = multiprocessing.Array('i', 5)
+        counters = multiprocessing.Array("i", 5)
 
         with ZipFile(file_dst, "r") as zipfile:
             with zipfile.open(zipfile_src) as extracted_file:
@@ -282,22 +284,24 @@ class DatasetBase:
                 ds_len = int(ds_len / 5)
 
                 # The main read process
-                reader = multiprocessing.Process(target=DatasetBase._init_reader, args=(extracted_file, read_queue, counters, ds_len))
+                reader = multiprocessing.Process(
+                    target=DatasetBase._init_reader, args=(extracted_file, read_queue, counters, ds_len)
+                )
                 reader.start()
 
                 # Initialize the workers
                 workers = []
                 for _ in range(num_workers):
                     p = multiprocessing.Process(
-                        target=DatasetBase._init_parser, args=(read_queue, write_queue, attributes, tokenize, counters, ds_len)
+                        target=DatasetBase._init_parser,
+                        args=(read_queue, write_queue, attributes, tokenize, counters, ds_len),
                     )
                     p.start()
                     workers.append(p)
 
-
-                # Finish subprocesses                
+                # Finish subprocesses
                 reader.join()
-                
+
                 # Collect results so workers wont be blocked
                 raw_data = []
                 while True:
@@ -305,9 +309,9 @@ class DatasetBase:
                         item = write_queue.get(timeout=1)
                     except multiprocessing.queues.Empty:
                         break
-                    
+
                     raw_data.append(item)
-                # Finish the workers                
+                # Finish the workers
                 for worker in workers:
                     worker.join()
 
@@ -329,9 +333,9 @@ class DatasetBase:
         raw_data = []
         with gzip.open(file_dst, "r") as file:
             all_lines = file.readlines()
-            for entry in tqdm(all_lines, total=len(all_lines) ,desc=f"Reading {file_dst} ...", ncols=120):
+            for entry in tqdm(all_lines, total=len(all_lines), desc=f"Reading {file_dst} ...", ncols=120):
                 if dato := DatasetBase.read_dato(entry, attributes, tokenize):
-                    raw_data.append(dato)     
+                    raw_data.append(dato)
 
         return raw_data
 

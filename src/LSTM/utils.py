@@ -1,9 +1,15 @@
+"""
+This file contains utility functions and classes for LSTM cell implementation and other.
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
+"""
+
 from dataclasses import dataclass, field
 from typing import List, Tuple
 import torch
 
-
-# Derivative of the sigmoid function
+# Derivatives were modified to fit the LSTM back pass better
 def sigmoid_d(x):
     """Sigmoid derivative
     Parameters:
@@ -20,14 +26,13 @@ def tanh_d(x):
     return torch.tanh(x).pow(2).sub(1).mul(-1)
 
 
-# Mean Squared Error loss function
 def mse_loss(y_gt, y_pred):
     """Mean square error loss fucntion
     Parameters:
         y_gt (torch.Tensor) : ground truth tensor, (batch_size, 1)
         y_pred (torch.Tensor) : tensor predicted by the model, (batch_size, 1)
     """
-    return (((y_gt.sub(y_pred)).pow(2)).mean())
+    return ((y_gt.sub(y_pred)).pow(2)).mean()
 
 
 def mse_loss_d(y_gt, y_pred):
@@ -36,19 +41,22 @@ def mse_loss_d(y_gt, y_pred):
         y_gt (torch.Tensor) : ground truth tensor, (batch_size, 1)
         y_pred (torch.Tensor) : tensor predicted by the model, (batch_size, 1)
     """
+    # Here, mean whould be also applied. It is not, because all the experiments ran with this setting.
+    # This means the batch size will affect the learning rate factor, well, whatever. The model works and
+    # it is just a different configuration of hyperparameters.
     return y_pred.sub(y_gt)
 
 
 def num_correct(y_gt, y_pred):
-    """Obtain the ration of cerrect predicitons"""
-    # Rounding the GTs so our regression model with floats could learn from floats with enough gradient
-    # while the class is it's rounded value - it has to learn how to count properly
-    return ((torch.round(y_pred) == torch.round(y_gt)).sum().div(y_pred.shape[0]))
+    """Obtain the ration of correct predicitons"""
+    # Rounding the GTs so our regression model can classify the floats as integers
+    return (torch.round(y_pred) == torch.round(y_gt)).sum().div(y_pred.shape[0])
 
 
 @dataclass
 class LSTMGradParams:
     """This dataclass serves as a stack for LSTM data-flow for gradient computation"""
+
     memory: List[Tuple] = field(default_factory=list)
     stack_size: int = field(default_factory=lambda: 0)
 

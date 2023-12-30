@@ -1,4 +1,9 @@
-# Always save the best model as per checkpoints
+"""
+Implementation of a LSTM regressor using LSTM cell and MLP
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
+"""
 
 import os
 import pickle
@@ -13,6 +18,7 @@ from LSTM.model_parts import LSTMCell, BiLSTMCell, Regressor
 from LSTM.utils import mse_loss, mse_loss_d, num_correct
 
 PLOT_DATA_CACHE = None
+
 
 class ChartData:
     """This class stores, aggregates and annotates training data"""
@@ -51,7 +57,16 @@ class LSTM:
     modes = ["bag", "mean", "last"]
 
     def __init__(
-        self, input_size, hidden_lstm, hidden_dense, mode, device="cpu", torch_type=torch.float32, bidirectional=False, folder="../models",  arg_dict={}
+        self,
+        input_size,
+        hidden_lstm,
+        hidden_dense,
+        mode,
+        device="cpu",
+        torch_type=torch.float32,
+        bidirectional=False,
+        folder="../models",
+        arg_dict={},
     ):
         """
         Initialize the LSTM regressor
@@ -194,24 +209,26 @@ class LSTM:
                 loss_d = mse_loss_d(y_gt, y_pred)
 
                 # Do the backward step with LR with linear decay
-                coeff = ((current_step / steps) * lr_decay_coeff)
-                _lr = np.e ** coeff * lr
+                coeff = (current_step / steps) * lr_decay_coeff
+                _lr = np.e**coeff * lr
                 self.backward(loss_d, lr=_lr)
 
                 # Testing (eval) part
                 if steps_to_eval == 0:
                     steps_to_eval = steps_per_eval - 1
-                    
+
                     correct_rate, mse_error = self.eval(test_dataset)
                     # Look for best ratio of mse_error and correct rate (lower the better)
                     if mse_error < best_mse:
                         best_mse = mse_error
                         self.checkpoint(current_step, mse_error, correct_rate)
-                    
+
                     PLOT_DATA_CACHE.testing_data.add_entry(correct=correct_rate, loss=mse_error)
-                    
+
                     # Calculate and display the losses
-                    loss_avg = sum(PLOT_DATA_CACHE.training_data.loss[-8:]) / len(PLOT_DATA_CACHE.training_data.loss[-8:])
+                    loss_avg = sum(PLOT_DATA_CACHE.training_data.loss[-8:]) / len(
+                        PLOT_DATA_CACHE.training_data.loss[-8:]
+                    )
                     last_eval_correct_rate = PLOT_DATA_CACHE.testing_data.correct[-1]
                     pbar.set_description(
                         (
@@ -224,13 +241,12 @@ class LSTM:
 
                 current_step += 1
                 pbar.update(1)
-                
+
         # Pickle the training data for potential further use
         filename = os.path.join(self.run_folder, "training_data.p")
         with open(filename, "wb") as data_file:
             print(f"Saving plot data into {filename}")
             pickle.dump(PLOT_DATA_CACHE, data_file)
-                
 
     def create_run_folder(self, runs_dir, run_dict):
         """Create folder which would store the data of this run
@@ -253,7 +269,6 @@ class LSTM:
         self.last_checkpoint = os.path.join(self.run_folder, filename)
         with open(self.last_checkpoint, "wb") as model_file:
             pickle.dump(self, model_file)
-        
 
     def eval(self, dataset):
         """
@@ -267,7 +282,6 @@ class LSTM:
         y_gt = y_gt.to(self.device)
         y_pred = self.forward(X, requires_grad=False).squeeze(1)
         return num_correct(y_gt, y_pred), mse_loss(y_gt, y_pred)
-
 
     def pickle(self, file_descriptor):
         """Pickle self into opened file descriptor"""

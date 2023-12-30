@@ -1,6 +1,14 @@
+"""
+This module implements Dummy datasets for testing and validating purposes
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
+"""
+
 import torch
 
 from datasets.datasetBase import DatasetBase
+
 
 class SummingIntDataset(DatasetBase):
     """A dataset with random integer sequences with y_gt only their respective sums"""

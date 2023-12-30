@@ -2,9 +2,8 @@
 This file implements a LSTM regressor controll class configurable from CLI or to be used as a object
 
 Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
 """
-
-# This might have confusing structure,
 
 import argparse
 from sys import argv
@@ -85,7 +84,9 @@ class CLIParser:
             help="Configure learning rate, is normalized by batch_size to standardize per-step learning rate.",
         )
         training.add_argument("-b", "--batch", type=int, default=64, help="Set the batch size for training.")
-        training.add_argument("-s", "--steps", type=int, default=10000, help="Train the model for this number of entries.")
+        training.add_argument(
+            "-s", "--steps", type=int, default=10000, help="Train the model for this number of entries."
+        )
         training.add_argument(
             "--eval-skips",
             type=int,
@@ -123,7 +124,4 @@ class CLIParser:
 
     def parse_args(self):
         """Parse the arguments"""
-        # import pdb; pdb.set_trace()
-        # if "-h" in argv or "--help" in argv:
-        #     self.parser.parse_args(["-h"])
         return self.parser.parse_args(argv[1:])

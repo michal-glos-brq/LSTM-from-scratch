@@ -1,21 +1,16 @@
 #! /usr/bin/env python3
 
 """
-This simple script provides opportunity to controll the LSTM model and data flow
+This simple script provides opportunity to control the LSTM model and data flow, though controlling from
+Jupyter notebook is preferred.
 
 Author: Michal Glos (xglosm01)
+ZPJn 2023 - FIT VUT
 """
 import pickle
-import os
 
 import torch
 from torch import float16, float32, float64
-
-TORCH_FLOATS = {
-    'float16': float16,
-    'float32': float32,
-    'float64': float64,
-}
 
 from arguments import CLIParser
 from LSTM.LSTM import LSTM
@@ -28,7 +23,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with torch.no_grad():
-
         ## Load dataset
         dataset = parser.dataset_cls.instantiate_from_args(args)
 
@@ -36,8 +30,11 @@ if __name__ == "__main__":
         if args.load:
             with open(args.load, "rb") as file:
                 model = LSTM.from_pickle(file)
-            assert model.lstm.input_size == dataset.entry_size, "Dataset entry size and model input size do not check up!"
+            assert (
+                model.lstm.input_size == dataset.entry_size
+            ), "Dataset entry size and model input size do not check up!"
         else:
+            TORCH_FLOATS = {"float16": float16, "float32": float32, "float64": float64}
             model = LSTM(
                 input_size=dataset.entry_size,
                 hidden_lstm=args.hidden_size,
@@ -50,9 +47,7 @@ if __name__ == "__main__":
 
         ## Train model
         if args.training is not None:
-            model.train(
-                dataset.train_data, dataset.test_data, args.lr, args.batch, args.steps, args.eval_skips
-            )
+            model.train(dataset.train_data, dataset.test_data, args.lr, args.batch, args.steps, args.eval_skips)
 
             # Load the best behaving model for evaluation purposes
             if hasattr(model, "last_checkpoint"):
@@ -61,4 +56,8 @@ if __name__ == "__main__":
 
         ## Evaluate model
         correct, mse_loss = model.eval(dataset.eval_data)
-        print("Evaluation finished with {:.2f} % correct predictions with mean square error of {:.4f}.".format(correct, mse_loss))
+        print(
+            "Evaluation finished with {:.2f} % correct predictions with mean square error of {:.4f}.".format(
+                correct, mse_loss
+            )
+        )

@@ -1,4 +1,10 @@
-"""This module implements tripadvisor dataset manager"""
+"""
+Implementation of Trip Advisor dataset manager
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
+"""
+
 import os
 import logging
 import random
@@ -8,7 +14,7 @@ from tqdm import tqdm
 
 from datasets.datasetBase import DatasetBase
 
-
+# This constant is here so RAM would not get devaured, possibly causing mayhem in the OS
 MAX_DS_LEN = 50264531
 
 

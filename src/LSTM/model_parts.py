@@ -5,6 +5,9 @@ The cell is capable of processing a batch of heterogenous input vectors, one at 
 This file also implements a neural network model with 2 linear layers - first with activation sigmoid,
 the second is None. This model works like rough regressor/estimator, final values have to be rounded
 for integer ranking eventually when evaluating (decimals provide good gradients when learning)
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
 """
 import torch
 

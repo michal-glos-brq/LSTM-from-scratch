@@ -1,3 +1,9 @@
+"""
+Implementation of Amazon dataset class
+
+Author: Michal Glos (xglosm01)
+ZPJa 2023 - FIT VUT
+"""
 import os
 import logging
 import random
@@ -44,7 +50,8 @@ DATASETS = {
 }
 
 
-DATASET_OF_INTEREST = ["Magazines", "GiftCards", "Software", "VideoGames"]
+# DATASET_OF_INTEREST = ["Magazines", "GiftCards", "Software", "VideoGames"]
+DATASET_OF_INTEREST = ["Magazines"]
 
 
 class AmazonDataset(DatasetBase):
@@ -135,19 +142,19 @@ class AmazonDataset(DatasetBase):
 
         # Count entries per rating class
         entries_limit = int(entries / 5)
-        counter = [0] * 5        
+        counter = [0] * 5
 
         random.shuffle(self._raw_data)
 
         dato_to_del = []
         for dato in self._raw_data:
-            idx = int(dato['overall']) - 1
+            idx = int(dato["overall"]) - 1
             if not counter[idx] >= entries_limit:
                 counter[idx] += 1
                 self.raw_data.append(dato)
             else:
                 dato_to_del.append(dato)
-        
+
         del self._raw_data
         del dato_to_del
 
@@ -192,15 +199,20 @@ class AmazonDataset(DatasetBase):
         self.y_train = self.y[: self.train_border_idx]
         self.X_test = self.X[self.train_border_idx : self.test_border_idx]
         self.y_test = self.y[self.train_border_idx : self.test_border_idx]
-        self.X_eval = self.X[self.test_border_idx : ]
-        self.y_eval = self.y[self.test_border_idx : ]
+        self.X_eval = self.X[self.test_border_idx :]
+        self.y_eval = self.y[self.test_border_idx :]
         # Log it to the user (as print to be seen in jupyter also)
-        logging.info(f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}.")
-        logging.info(f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}.")
-        logging.info(f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}.")
-        
+        logging.info(
+            f"A ration of {':'.join(map(str, self.data_ratios))} was requested on dataset of len {len(self.X)}."
+        )
+        logging.info(
+            f"The X component was loaded - train: {len(self.X_train)}; test: {len(self.X_test)}; eval: {len(self.X_eval)}."
+        )
+        logging.info(
+            f"The y component was loaded - train: {len(self.y_train)}; test: {len(self.y_test)}; eval: {len(self.y_eval)}."
+        )
+
         del self.raw_data
-        
 
     @classmethod
     def instantiate_from_args(cls, args):
@@ -225,9 +237,7 @@ class AmazonDataset(DatasetBase):
             parser (argparse.ArgumentParser): Argument parser object
         """
         group = parser.add_argument_group(title="Dataset: Amazon Dataset")
-        group.add_argument(
-            "-e", "--entries", type=int, default=10000, help="Number of entries to load."
-        )
+        group.add_argument("-e", "--entries", type=int, default=10000, help="Number of entries to load.")
         group.add_argument(
             "--data-path", type=str, default="./data", help="The path to the folder with data to be downloaded."
         )
@@ -235,9 +245,7 @@ class AmazonDataset(DatasetBase):
         group.add_argument(
             "--verified", action="store_true", help="Use verified bool value as part of embedding vectors."
         )
-        group.add_argument(
-            "--balanced", action="store_true", help="Balance the dataset with oversampling."
-        )
+        group.add_argument("--balanced", action="store_true", help="Balance the dataset with oversampling.")
         group.add_argument(
             "-div",
             "--division",
