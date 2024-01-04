@@ -51,7 +51,7 @@ DATASETS = {
 
 
 # DATASET_OF_INTEREST = ["Magazines", "GiftCards", "Software", "VideoGames"]
-DATASET_OF_INTEREST = ["Magazines"]
+DATASET_OF_INTEREST = ["VideoGames"]
 
 
 class AmazonDataset(DatasetBase):
@@ -66,8 +66,8 @@ class AmazonDataset(DatasetBase):
     All data are obtained during object initialization, download included.
     Filesystem is checked if datasets are downloaede, if some or all are missing,
     download sequence is initiated and the data are then loaded from gzip files.
-    After the embedding model is loaded and applied on all data. Finally, data
-    are cut into maximum len. and padded with zeros to homogene lenghts.
+    After, the embedding model is loaded and applied on all data. Finally, data
+    are cut into maximum len. and eventually padded with zeros.
     """
 
     name = "amazon"

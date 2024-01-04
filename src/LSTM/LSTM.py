@@ -159,7 +159,7 @@ class LSTM:
         chained_divided_d = self.divide_grads(chained_d, last_sequence_len)
         self.lstm.backward(chained_divided_d, lr)
 
-    def train(self, train_dataset, test_dataset, lr, batch_size, steps, steps_per_eval, lr_decay_coeff=-3):
+    def train(self, train_dataset, test_dataset, lr, batch_size, steps, steps_per_eval, lr_decay_coeff=-5):
         """
         Train the model on given dataset
 

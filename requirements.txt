@@ -9,6 +9,7 @@ pandas
 seaborn
 
 ### If something does not work, this are the versions I used:
+## Jupyter might not be neccessary though
 
 # gensim==4.3.2
 # jupyter==1.0.0
