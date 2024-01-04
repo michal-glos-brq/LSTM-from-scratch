@@ -1,15 +1,15 @@
-### Project LSTM:
-This is implementation of LSTM neural network from scratch (with numpy only). It's purpose is predicting the Amazon review star rating from the actual text of the review. For further imformation, read the `technicka_zprava.pdf` (which is availible in Czech language only, but Google translater handles that kind of job quite well now)
+### How to setup venv for this project
 
-### How to run the app
-List of lstm-cli.py script launch options:
- - `--naive-evaluate` statistical (no ml) approach to predictions, has priority over `--evaluate` option
- - `--evaluate` perform the dataset evaluation with LSTM
- - `--train-data-entries n` reviews to be trained on 
- - `--eval-data-entries n` reviews to be used for evaluation
- - `--data-ratio r` ratio of training data, has priority over `--train-data-entries n` and `--eval-data-entries n`
- - `--learning-rate` specify learning rate
- - `--lstm-cells n` specify LSTM cell count
- - `--epochs n` specify the number of epochs
- - `--load-model path` load model from path
- - `--save-movel path` save model to path
+This software works ideally in python3.8 virtual environment with requirements.txt installed.
+Preffered way of installing and setting up the venv is:
+
+```
+conda create --name ZPJa python==3.8
+conda activate ZPJa
+pip install -r requirements.txt
+```
+
+### CLI arguments
+Because of custom CLI arguements for each dataset, argparse gymnastics had to be done. This means all CLI runs have to be written in this format:
+`src/lstm-cli.py -ds=sum_float -te=10 -tr=10 -ev=10 -d=cpu -bi -m=mean train`
+In other words - all parameters need to be entered with equation sign (short or long versions of flags could be used) if they require a parameter. Otherwise, the code would fail.
