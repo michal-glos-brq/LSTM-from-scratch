@@ -1,7 +1,7 @@
 # LSTM from scratch
 
 This repository implements and documents a custom LSTM neural network used for sentiment analysis, more generally - single value regression from a written text. The Amazon and TripAdvisor datasets include particular reviews with star ranking given along them. Those rankings are the subject of prediction.
-This project was made as a part of my MsC. studies in FIT - BUT.
+This project was made as a part of my MsC. studies in FIT - BUT: As a demonstration of understanding the inner working of recurrent (LSTM in particular) neural networks. The examples, even though were from the real world, be considered toy examples. The trained models could not be capable of meaningful operation given the combination of hardware limitations in computational power and memory (RTX 2060 eGPU + i7 11th gen), model architecture and the complexity of datasets 
 
 
 # Key features
