@@ -1,3 +1,17 @@
+# LSTM from scratch
+
+This repository implements and documents a custom LSTM neural network used for sentiment analysis, more generally - single value regression from a written text. The Amazon and TripAdvisor datasets include particular reviews with star ranking given along them. Those rankings are the subject of prediction.
+This project was made as a part of my MsC. studies in FIT - BUT.
+
+
+# Key features
+ - Custom backpropagation implementation in PyTorch (no autograd)
+ - Bidirectional LSTM implemented
+ - MLP regressor to work with the LSTM sequence extracted features with several types of aggregations
+ - Trainable initial LSTM states
+ - Dataset management, tokenizing, Word2Vec embedding and pickling the once done datasets
+ - Real world and custom generated datasets
+
 ### How to setup venv for this project
 
 This software works ideally in python3.8 virtual environment with requirements.txt installed.
@@ -13,3 +27,4 @@ pip install -r requirements.txt
 Because of custom CLI arguements for each dataset, argparse gymnastics had to be done. This means all CLI runs have to be written in this format:
 `src/lstm-cli.py -ds=sum_float -te=10 -tr=10 -ev=10 -d=cpu -bi -m=mean train`
 In other words - all parameters need to be entered with equation sign (short or long versions of flags could be used) if they require a parameter. Otherwise, the code would fail.
+This was kind of a hack and argparse does not really like it, so this order has to be admitted, otherwise it protests ...
